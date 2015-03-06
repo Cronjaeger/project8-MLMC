@@ -136,17 +136,15 @@ euler_maruyama_multilevel <- function(
 #' @param N_paths the number of paths to be sampled
 #' @param t_max the time-horizon of simulations
 #' @param h the step size.
-testEM <- function(N_paths = 20,t_max = 1, h = 0.01){
+testEM <- function(N_paths = 20,t_max = 1, h = 0.001){
   #test on a geometric brownian motion
   r <- 0.05
-  s <- 0.2
+  s <- 0.1
   X0 <- 1
   mu <- function(t,x) r*x
   sigma <- function(t,x) s*x
 
   #set parameters for EM algorithm
-  t_max <- 1
-  h <- 0.001
 
   #output is stored as a list of lists
   tests <- list()
@@ -161,11 +159,13 @@ testEM <- function(N_paths = 20,t_max = 1, h = 0.01){
 
   ##plot output
   par(bty = "l",family = "HersheySans",font=1)
-  colours <- rainbow(N_paths,alpha = 0.7)
+  colours <- rainbow(N_paths,alpha = 0.5)
 #  print(tests)
+  plot(x = h*0:(t_max/h),y=X0*exp(r*h*(0:(t_max/h))), xlab = "",ylab = "",ylim=c(minVal,maxVal),xlim=c(0,t_max),xaxs="i",lwd=2,type="l",lty=3)
+  par(new=TRUE)
   for(i in 1:N_paths){
-    plot(tests[[i]]$t,tests[[i]]$X,type="l",col = colours[i],xlab = "",ylab = "",ylim=c(minVal,maxVal),xaxs="i")
-    par(new=TRUE)
+    lines(tests[[i]]$t,tests[[i]]$X,type="l",col = colours[i])
+#    par(new=TRUE)
   }
   par(new=FALSE)
 #   em_test <- euler_maruyama(t_max = 1,h=0.01,drift = mu,dispersion = sigma,X0 = X0)
