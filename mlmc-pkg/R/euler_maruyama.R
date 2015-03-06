@@ -45,9 +45,16 @@ euler_maruyama <- function(t_max,h,drift,dispersion,X0){
 #' variable is simulated on the time-interval [0,Tmax]
 #' @param N_L the number of paths to be sampled.
 #' @param a the coefficient of drift in the diffusion
+#' Should have the form a <- function(t,s) ...
 #' @param b the coefficient of dispersion in the diffusion
+#' Should have the form b <- function(t,s) ...
 #' @param S0 the initial condition of the diffusion
 #' @param payoffFunction the payoffFunction to be used
+#' #' Should have the form payoffFunction <- function(s_tMax) ...
+#' @param payoff_is_a_path-functional is a boolean indicatin weather
+#' \code{payoff-function} is a functrion of S[t_max] or S[0:t_max].
+#' In the former case, A lot of memmory is saved by not storing whole
+#' paths, but only positions mooving as the simulation progresses.
 #'
 #' @return A vector of length \code{N_L}. Each entry containing 1
 #' estimate of the difference in discretisation-error between two
@@ -61,7 +68,8 @@ euler_maruyama_multilevel <- function(
     a,
     b,
     S0,
-    payoffFunction = function(S) S)
+    payoffFunction = function(S) S,
+    payoff_is_a_path-functional = FALSE)
   {
 
   #infer implicitly specified parameters
@@ -74,40 +82,86 @@ euler_maruyama_multilevel <- function(
   increments <- rnorm(N_L * n_steps_fine , sd = sqrt(h_fine))
   dim(increments) <- c(N_L,M,n_steps_coarse)
 
-  #initialize result-vectors
-  S_coarse <- rep(0.0,N_L)
-  S_fine <- rep(0.0,N_L)
+  if(!payoff_is_a_path-functional){
 
-  #define reduction-steps
-  reduction_step_coarse <- function(increments){
-    #axis 2 of increments indexes 1:n_steps_coarse
-    #axis 1 of increments indexes 1:M
-    dW <- apply(increments,MARGIN = 2,FUN = sum)
-    t <- 0
-    S <- S0
-    for(i in 1:n_steps_coarse){
-      t <- i*h_coarse
-      S <- S + a(t,S)*h_coarse + b(t,S)*dW[i]
+    #initialize result-vectors
+    S_coarse <- rep(0.0,N_L)
+    S_fine <- rep(0.0,N_L)
+
+    payoff_auxiliary <- function(timesteps,s) payoffFunction(s)
+
+    #define reduction-steps
+    reduction_step_coarse <- function(increments){
+      #axis 2 of increments indexes 1:n_steps_coarse
+      #axis 1 of increments indexes 1:M
+      dW <- apply(increments,MARGIN = 2,FUN = sum)
+      t <- 0
+      S <- S0
+      for(i in 1:n_steps_coarse){
+        t <- i*h_coarse
+        S <- S + a(t,S)*h_coarse + b(t,S)*dW[i]
+      }
+      return(S)
     }
-    return(S)
-  }
-  reduction_step_fine <- function(increments){
-    dim(increments) <- n_steps_fine
-    t <- 0
-    S <- S0
-    for(i in 1:n_steps_fine){
-      t <- i*h_fine
-      S <- S + a(t,S)*h_fine + b(t,S)*increments[i]
+    reduction_step_fine <- function(increments){
+      dim(increments) <- n_steps_fine
+      t <- 0
+      S <- S0
+      for(i in 1:n_steps_fine){
+        t <- i*h_fine
+        S <- S + a(t,S)*h_fine + b(t,S)*increments[i]
+      }
+      return(S)
     }
-    return(S)
+  } #end if(!payoff_is_a_path-functional)
+  else{
+    #initialize result-vectors
+    S_coarse <- rep(0.0,(n_steps_coarse + 1) * N_L)
+    S_fine <- rep(0.0, (n_steps_fine + 1) * N_L)
+    dim(S_coarse) <- c((n_steps_coarse + 1),N_L)
+    dim(S_fine) <- c((n_steps_fine + 1),N_L)
+
+    payoff_auxiliary <- function(timesteps, s_vec) payoffFunction(timesteps,s_vec)
+
+    #define reduction-steps
+    reduction_step_coarse <- function(increments){
+      #axis 2 of increments indexes 1:n_steps_coarse
+      #axis 1 of increments indexes 1:M
+      dW <- apply(increments,MARGIN = 2,FUN = sum)
+      t <- 0
+      S <- c(S0,rep(0.0,n_steps_coarse))
+      for(i in 1:n_steps_coarse){
+        t <- i*h_coarse
+        S[i+1] <- S[i] + a(t,S[i])*h_coarse + b(t,S[i])*dW[i]
+      }
+      return(S)
+    }
+    reduction_step_fine <- function(increments){
+      dim(increments) <- n_steps_fine
+      t <- 0
+      S <- c(S0,rep(0.0,n_steps_fine))
+      for(i in 1:n_steps_fine){
+        t <- i*h_fine
+        S[i+1] <- S[i] + a(t,S[i])*h_fine + b(t,S[i])*increments[i]
+      }
+      return(S)
+    }
   }
 
   #apply reduction-step to "N_L"-axis.
-  S_coarse <- apply(X = increments, MARGIN = 1, FUN = reduction_step_coarse)
+  if(L>0) S_coarse <- apply(X = increments, MARGIN = 1, FUN = reduction_step_coarse)
   S_fine <- apply(X = increments, MARGIN = 1, FUN = reduction_step_fine)
 
-  P_fine <- payoffFunction(S_fine)
-  P_coarse <- payoffFunction(S_coarse)
+  #when applying payoffFunction(S), later this is done using
+  #apply(S,MARGIN=2,payoffFunction)
+  if(!payoff_is_a_path-functional){
+    dim(S_coarse) <- c(1,N_L)
+    dim(S_fine) <- c(1,N_L)
+  }
+
+  P_fine <- apply(S_fine,2,payoff_auxiliary,timesteps = h_fine*0:n_steps_fine)
+  if(L>0) P_coarse <- apply(S_coarse,2,payoff_auxiliary, timesteps = h_coarse*0:n_steps_coarse)
+  else P_coarse = 0
 
   return(P_fine - P_coarse)
 }
@@ -136,20 +190,36 @@ euler_maruyama_multilevel <- function(
 #' @param N_paths the number of paths to be sampled
 #' @param t_max the time-horizon of simulations
 #' @param h the step size.
-testEM <- function(N_paths = 20,t_max = 1, h = 0.001){
-  #test on a geometric brownian motion
-  r <- 0.05
-  s <- 0.1
-  X0 <- 1
-  mu <- function(t,x) r*x
-  sigma <- function(t,x) s*x
+testEM <- function(N_paths = 20,t_max = 1, h = 0.001,type="gbm"){
+
+  if(type=="gbm"){
+    #test on a geometric brownian motion
+    r <- 0.05
+    s <- 0.1
+    X0 <- 1
+    mu <- function(t,x) r*x
+    sigma <- function(t,x) s*x
+    x_mean <- h*0:(t_max/h)
+    y_mean <- X0*exp(r*h*(0:(t_max/h)))
+  }
+  if(type=="wright-fisher"){
+    m <- 0.2
+    mu <- function(t,x) m * (0.5 - x)
+    sigma <- function(t,x) {
+      if( min(x,1-x) < 2^(-14)) return(0.0)
+      else return(sqrt(x*(1-x)))
+    }
+    X0 <- 0.5
+    x_mean <- h*0:(t_max/h)
+    y_mean <- rep(0.5,length(x_mean))
+  }
 
   #set parameters for EM algorithm
 
   #output is stored as a list of lists
   tests <- list()
-  maxVal <- 1 #minimum of plotting
-  minVal <- 0.9 #maximum for plotting
+  maxVal <- X0*1.1 #minimum of plotting
+  minVal <- X0*0.9 #maximum for plotting
   for(i in 1:N_paths){
     result <- euler_maruyama(t_max = t_max,h=h,drift = mu,dispersion = sigma,X0 = X0)
     tests <- c(tests,list(result))
@@ -157,11 +227,16 @@ testEM <- function(N_paths = 20,t_max = 1, h = 0.001){
     minVal <- min(minVal, min(result$X))
   }
 
+  if(type=="wright-fisher"){
+    maxVal <- 1.05
+    minVal <- 0
+  }
+
   ##plot output
   par(bty = "l",family = "HersheySans",font=1)
   colours <- rainbow(N_paths,alpha = 0.5)
 #  print(tests)
-  plot(x = h*0:(t_max/h),y=X0*exp(r*h*(0:(t_max/h))), xlab = "",ylab = "",ylim=c(minVal,maxVal),xlim=c(0,t_max),xaxs="i",lwd=2,type="l",lty=3)
+  plot(x_mean,y_mean, xlab = "",ylab = "",ylim=c(minVal,maxVal),xlim=c(0,t_max),xaxs="i",lwd=2,type="l",lty=3)
   par(new=TRUE)
   for(i in 1:N_paths){
     lines(tests[[i]]$t,tests[[i]]$X,type="l",col = colours[i])
