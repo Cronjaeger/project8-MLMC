@@ -1,8 +1,8 @@
-Package: mlmc-pkg
-Title: What the package does (one line)
+Package: mlmcpkg
+Title: Code for a 2 week project on Multilevel Monte Carlo methods for SDEs
 Version: 0.1
-Authors@R: "First Last <first.last@example.com> [aut, cre]"
-Description: What the package does (one paragraph)
+Authors@R: "Mathias C. Cronjager <kitkat2.0@gmail.com> [aut, cre]"
+Description: Does what the title says.
 Depends: R (>= 3.1.2)
-License: What license is it under?
+License: MIT Liscence
 LazyData: true
