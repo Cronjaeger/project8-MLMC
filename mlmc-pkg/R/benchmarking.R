@@ -1,4 +1,4 @@
-##berform benchmarking
+##perform benchmarking
 
 require(microbenchmark)
 require(ggplot2)
