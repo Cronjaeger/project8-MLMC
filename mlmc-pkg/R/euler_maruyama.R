@@ -55,6 +55,11 @@ euler_maruyama <- function(t_max,h,drift,dispersion,X0){
 #' \code{payoff-function} is a functrion of S[t_max] or S[0:t_max].
 #' In the former case, A lot of memmory is saved by not storing whole
 #' paths, but only positions mooving as the simulation progresses.
+#' @param useParallel a boolean value indicating if paths schoud be
+#' generated and computed in parallel. Parallel compuattion depends
+#' on the parallel-package.
+#' @param nCores the number of cores to use when running in parallel.
+#' if set to \code{NA}, the total number of availiable cores is used.
 #'
 #' @return A vector of length \code{N_L}. Each entry containing 1
 #' estimate of the difference in discretisation-error between two
@@ -69,8 +74,12 @@ euler_maruyama_multilevel <- function(
     b,
     S0,
     payoffFunction = function(S) S,
-    payoff_is_a_path_functional = FALSE)
+    payoff_is_a_path_functional = FALSE,
+    useParallel = FALSE,
+    nCores = NA)
   {
+
+  if(useParallel) require(parallel)
 
   #infer implicitly specified parameters
   h_fine <- h0 * M^(-L)
@@ -78,18 +87,7 @@ euler_maruyama_multilevel <- function(
   n_steps_fine <- Tmax/h_fine
   n_steps_coarse <- round(n_steps_fine/M)
 
-  #precompute increments
-  increments <- rnorm(N_L * n_steps_fine , sd = sqrt(h_fine))
-  dim(increments) <- c(N_L,M,n_steps_coarse)
-
   if(!payoff_is_a_path_functional){
-
-    #initialize result-vectors
-    S_coarse <- rep(0.0,N_L)
-    S_fine <- rep(0.0,N_L)
-
-    payoff_auxiliary <- function(timesteps,s) payoffFunction(s)
-
     #define reduction-steps
     reduction_step_coarse <- function(increments){
       #axis 2 of increments indexes 1:n_steps_coarse
@@ -101,7 +99,7 @@ euler_maruyama_multilevel <- function(
         t <- i*h_coarse
         S <- S + a(t,S)*h_coarse + b(t,S)*dW[i]
       }
-      return(S)
+      return(payoffFunction(S))
     }
     reduction_step_fine <- function(increments){
       dim(increments) <- n_steps_fine
@@ -111,18 +109,15 @@ euler_maruyama_multilevel <- function(
         t <- i*h_fine
         S <- S + a(t,S)*h_fine + b(t,S)*increments[i]
       }
-      return(S)
+      return(payoffFunction(S))
     }
   } #end if(!payoff_is_a_path_functional)
 
+  ## we do the above in a more general way
   else{
-    #initialize result-vectors
-    S_coarse <- rep(0.0,(n_steps_coarse + 1) * N_L)
-    S_fine <- rep(0.0, (n_steps_fine + 1) * N_L)
-    dim(S_coarse) <- c((n_steps_coarse + 1),N_L)
-    dim(S_fine) <- c((n_steps_fine + 1),N_L)
-
-    payoff_auxiliary <- function(timesteps, s_vec) payoffFunction(timesteps,s_vec)
+    #define timesteps
+    timesteps_fine = h_fine*0:n_steps_fine
+    timesteps_coarse = h_coarse*0:n_steps_coarse
 
     #define reduction-steps
     reduction_step_coarse <- function(increments){
@@ -135,7 +130,7 @@ euler_maruyama_multilevel <- function(
         t <- i*h_coarse
         S[i+1] <- S[i] + a(t,S[i])*h_coarse + b(t,S[i])*dW[i]
       }
-      return(S)
+      return(payoffFunction(timestep_coarses,S))
     }
     reduction_step_fine <- function(increments){
       dim(increments) <- n_steps_fine
@@ -145,43 +140,45 @@ euler_maruyama_multilevel <- function(
         t <- i*h_fine
         S[i+1] <- S[i] + a(t,S[i])*h_fine + b(t,S[i])*increments[i]
       }
-      return(S)
+      return(payoffFunction(timestep_fine,S))
     }
   }
 
   #apply reduction-step to "N_L"-axis.
-  if(L>0) S_coarse <- apply(X = increments, MARGIN = 1, FUN = reduction_step_coarse)
-  S_fine <- apply(X = increments, MARGIN = 1, FUN = reduction_step_fine)
+  if(!useParallel){
+    #precompute increments
+    increments <- rnorm(N_L * M * n_steps_coarse , sd = sqrt(h_fine))
+    dim(increments) <- c(N_L,M,n_steps_coarse)
 
-  #when applying payoffFunction(S), later this is done using
-  #apply(S,MARGIN=2,payoffFunction)
-  if(!payoff_is_a_path_functional){
-    dim(S_coarse) <- c(1,N_L)
-    dim(S_fine) <- c(1,N_L)
+    if(L>0) P_coarse <- apply(X = increments, MARGIN = 1, FUN = reduction_step_coarse)
+    else P_coarse = 0
+    P_fine <- apply(X = increments, MARGIN = 1, FUN = reduction_step_fine)
+  } else {
+    if(is.na(nCores)) nCores <- detectCores()
+
+    #precompute increments this time as a list of matrices...
+    incrementGenerator <- function(x){
+      increments <- rnorm(n_steps_coarse * M, sd = sqrt(h_fine))
+      dim(increments) <- c(M,n_steps_coarse)
+      return(increments)
+    }
+    increments <- mclapply(1:N_L,FUN = incrementGenerator,
+                           mc.cores = nCores,
+                           mc.preschedule = TRUE)
+    if(L>0) P_coarse <- mcmapply(FUN = reduction_step_coarse,
+                                 increments,
+                                 mc.preschedule = TRUE,
+                                 mc.cores = nCores)
+    else P_coarse = 0
+
+    P_fine <- mcmapply(FUN = reduction_step_fine,
+                       increments,
+                       mc.preschedule = TRUE,
+                       mc.cores = nCores)
   }
-
-  P_fine <- apply(S_fine,2,payoff_auxiliary,timesteps = h_fine*0:n_steps_fine)
-  if(L>0) P_coarse <- apply(S_coarse,2,payoff_auxiliary, timesteps = h_coarse*0:n_steps_coarse)
-  else P_coarse = 0
 
   return(P_fine - P_coarse)
 }
-  #function(t_max,h_fine,h_coarse,drift,dispersion,X0){
-#   #infer implicit parameters
-#   M <- round(h_fine/h_coarse)
-#   N_steps_fine <- floor(t_max / h_fine)
-#   N_steps_coarse <- round(N_steps_fine / M)
-#   steps_fine <- h_fine * 0:N_steps_fine
-#   steps_coarse <- h_coarse * 0:N_steps_coarse
-#
-#   dW_fine <- rnorm(N_steps_fine,sd = sqrt(h_fine))
-#   #dW_coarse <- rep(0,N_steps_coarse)
-#
-#   X_fine <- c(X0,rep(NA,N_steps_fine))
-#   X_coarse <- c(X0,rep(NA,N_steps))
-#
-#   #TODO: finiish this
-#}
 
 #' A script for testing the EM-mathod
 #' @description Simulates a geometric brownian motion, and plots the results.
