@@ -51,7 +51,7 @@ euler_maruyama <- function(t_max,h,drift,dispersion,X0){
 #' @param S0 the initial condition of the diffusion
 #' @param payoffFunction the payoffFunction to be used
 #' #' Should have the form payoffFunction <- function(s_tMax) ...
-#' @param payoff_is_a_path-functional is a boolean indicatin weather
+#' @param payoff_is_a_path_functional is a boolean indicatin weather
 #' \code{payoff-function} is a functrion of S[t_max] or S[0:t_max].
 #' In the former case, A lot of memmory is saved by not storing whole
 #' paths, but only positions mooving as the simulation progresses.
@@ -69,7 +69,7 @@ euler_maruyama_multilevel <- function(
     b,
     S0,
     payoffFunction = function(S) S,
-    payoff_is_a_path-functional = FALSE)
+    payoff_is_a_path_functional = FALSE)
   {
 
   #infer implicitly specified parameters
@@ -82,7 +82,7 @@ euler_maruyama_multilevel <- function(
   increments <- rnorm(N_L * n_steps_fine , sd = sqrt(h_fine))
   dim(increments) <- c(N_L,M,n_steps_coarse)
 
-  if(!payoff_is_a_path-functional){
+  if(!payoff_is_a_path_functional){
 
     #initialize result-vectors
     S_coarse <- rep(0.0,N_L)
@@ -113,7 +113,8 @@ euler_maruyama_multilevel <- function(
       }
       return(S)
     }
-  } #end if(!payoff_is_a_path-functional)
+  } #end if(!payoff_is_a_path_functional)
+
   else{
     #initialize result-vectors
     S_coarse <- rep(0.0,(n_steps_coarse + 1) * N_L)
@@ -154,7 +155,7 @@ euler_maruyama_multilevel <- function(
 
   #when applying payoffFunction(S), later this is done using
   #apply(S,MARGIN=2,payoffFunction)
-  if(!payoff_is_a_path-functional){
+  if(!payoff_is_a_path_functional){
     dim(S_coarse) <- c(1,N_L)
     dim(S_fine) <- c(1,N_L)
   }
