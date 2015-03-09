@@ -84,8 +84,10 @@ euler_maruyama_multilevel <- function(
   #infer implicitly specified parameters
   h_fine <- h0 * M^(-L)
   h_coarse <- h0 * M^(-L + 1)
-  n_steps_fine <- Tmax/h_fine
-  n_steps_coarse <- round(n_steps_fine/M)
+  n_steps_fine <- round(Tmax/(h_fine))
+  n_steps_coarse <- round(Tmax/(h_coarse))
+
+  #print(paste(n_steps_fine,n_steps_coarse,n_steps_fine/n_steps_coarse, M))
 
   if(!payoff_is_a_path_functional){
     #define reduction-steps
@@ -147,9 +149,13 @@ euler_maruyama_multilevel <- function(
   #apply reduction-step to "N_L"-axis.
   if(!useParallel){
     #precompute increments
-    increments <- rnorm(N_L * M * n_steps_coarse , sd = sqrt(h_fine))
-    dim(increments) <- c(N_L,M,n_steps_coarse)
-
+    if(L > 0){
+      increments <- rnorm(N_L * M * max(1,n_steps_coarse) , sd = sqrt(h_fine))
+      dim(increments) <- c(N_L,M,max(n_steps_coarse,1))
+    } else {
+      increments <- rnorm(N_L * n_steps_fine , sd = sqrt(h_fine))
+      dim(increments) <- c(N_L,n_steps_fine)
+    }
     if(L>0) P_coarse <- apply(X = increments, MARGIN = 1, FUN = reduction_step_coarse)
     else P_coarse = 0
     P_fine <- apply(X = increments, MARGIN = 1, FUN = reduction_step_fine)
@@ -158,8 +164,8 @@ euler_maruyama_multilevel <- function(
 
     #precompute increments this time as a list of matrices...
     incrementGenerator <- function(x){
-      increments <- rnorm(n_steps_coarse * M, sd = sqrt(h_fine))
-      dim(increments) <- c(M,n_steps_coarse)
+      increments <- rnorm(max(1,n_steps_coarse) * M, sd = sqrt(h_fine))
+      dim(increments) <- c(M,max(n_steps_coarse,1))
       return(increments)
     }
     increments <- mclapply(1:N_L,FUN = incrementGenerator,
