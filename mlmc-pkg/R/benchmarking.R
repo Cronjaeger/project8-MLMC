@@ -35,20 +35,44 @@ testParallelization <- function(n_samples){
 }
 
 testAgainst_euler <- function(epsilon, h_euler, N_euler,trials = 10L){
-  P_euler <- vector(0.0,length = trials)
-  P_mlmc <- vector(0.0,length = trials)
-  runtime_euler <- vector(0.0,length = trials)
-  runtime_mlmc <- vector(0.0,length = trials)
+  P_euler <- vector(mode = "numeric",length = trials)
+  P_mlmc <- vector(mode = "numeric",length = trials)
+  P_list_euler <- vector(mode = "numeric",length = N_euler)
+  runtime_euler <- vector(mode = "numeric",length = trials)
+  runtime_mlmc <- vector(mode = "numeric",length = trials)
 
   modell <- SDE_geomBM(r = 0.05,s = 0.2,X0 = 1)
+  f <- f_europeanOption(r = modell$X0, X0 = modell$X0, tMax = 1)
 
   for(i in 1:trials){
-    out_euler <- euler_maruyama(h = h_euler,
-                                t_max = 1.0,
-                                drift = modell$r,
-                                dispersion =modell$s,
-                                X0 = modell$X0)
-    out_multilevel_mc <- multilevel_mc()
+    t1 <- Sys.time()
+    for(j in 1:N_euler){
+      out_euler <- euler_maruyama(h = h_euler,
+                                  t_max = 1.0,
+                                  drift = modell$mu,
+                                  dispersion =modell$sigma,
+                                  X0 = modell$X0)
+      P_list_euler[j] <- f(out_euler$X[length(out_euler$X)])
+    }
+    P_euler[i] <- mean(P_list_euler)
+    t2 <- Sys.time()
+    out_multilevel_mc <- multilevel_mc(M = 4,
+                                       h0 = 1,
+                                       Tmax = 1,
+                                       N_L = 10^4,
+                                       a = modell$mu,
+                                       b = modell$sigma,
+                                       S0 = modell$X0,
+                                       payoffFunction = f,
+                                       epsilon = epsilon,
+                                       payoff_is_a_path_functional = FALSE,
+                                       useParallel = FALSE)
+    P_mlmc[i] <- sum(out_multilevel_mc$Y)
+    t3 <- Sys.time()
+    runtime_euler[i] <- difftime(t2,t1,units = "secs")
+    runtime_mlmc[i] <- difftime(t3,t1,units = "secs")
   }
-
+  hist(runtime_euler)
+  hist(runtime_mlmc)
+  return(list(P_euler = P_euler,P_mlmc = P_mlmc,runtime_euler = runtime_euler,runtime_mlmc = runtime_mlmc))
 }

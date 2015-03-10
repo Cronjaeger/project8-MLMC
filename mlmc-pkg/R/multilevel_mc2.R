@@ -1,3 +1,50 @@
+#' Implements the Multilevel Monte Carlo Path Simulation described 
+#' in the paper by Giles 2008
+#' 
+#' @description obtaines the value of Y_hat
+#' 
+#' Y_hat = N_L^(-1)sum_(i=1)^L (P_l-P_{l-1})
+#' 
+#' obtaining the optimal number of paths N_opt to be sampled of the SDE
+#'
+#' dS_t = a(t,S_t) dt + b(t,S_t) dW_t
+#'
+#' using the Euler-Maruyama method in the Rfunction: \code{euler_maruyama}
+#'
+#' @param M The factor of refinement between two levels.
+#' Should be a positive integer
+#' @param h0 The step size used at level 0. At level L, the step size
+#' is given by h0*M^-L
+#' @param Tmax the time-horizon of simulations. The underlying random
+#' variable is simulated on the time-interval [0,Tmax]
+#' @param N_L the number of paths to be sampled.
+#' @param a the coefficient of drift in the diffusion
+#' Should have the form a <- function(t,s) ...
+#' @param b the coefficient of dispersion in the diffusion
+#' Should have the form b <- function(t,s) ...
+#' @param S0 the initial condition of the diffusion
+#' @param payoffFunction the payoffFunction to be used
+#' #' Should have the form payoffFunction <- function(s_tMax) ...
+#' @param payoff_is_a_path_functional is a boolean indicatin weather
+#' \code{payoff-function} is a functrion of S[t_max] or S[0:t_max].
+#' In the former case, A lot of memmory is saved by not storing whole
+#' paths, but only positions mooving as the simulation progresses.
+#' @param useParallel a boolean value indicating if paths schoud be
+#' generated and computed in parallel. Parallel compuattion depends
+#' on the parallel-package.
+#' @param nCores the number of cores to use when running in parallel.
+#' if set to \code{NA}, the total number of availiable cores is used.
+#' @param epsilon r.m.s. accuracy used to determine the optimal 
+#' number of paths.
+#'
+#' @return A list containing the optimal Y_hat, the variance of the
+#' sequence, the optimal number of paths and the computing times of
+#' each path.
+#' 
+#' @example R/financial_options.R
+#' 
+#' @export multilevel_mc
+
 multilevel_mc<-function(
   M,
   h0,
@@ -8,9 +55,10 @@ multilevel_mc<-function(
   S0,
   #payoffFunction = f_europeanOption(),
   payoffFunction = function(S) S,
-  epsilon = 0.001,
   payoff_is_a_path_functional = FALSE,
-  useParallel = FALSE){
+  useParallel = FALSE,
+  nCores = NA,
+  epsilon = 0.001){
 
   L<-0 #It's meant to be ZERO
   P_0<-0
@@ -22,7 +70,7 @@ multilevel_mc<-function(
   while (L<2 || !stopMLMC) {
     t_start <- Sys.time()
 #    print(paste("Running loop for L =",L))
-    diff<-euler_maruyama_multilevel(L,M,h0,Tmax,N_L,a,b,S0,payoffFunction,payoff_is_a_path_functional,useParallel)
+    diff<-euler_maruyama_multilevel(L,M,h0,Tmax,N_L,a,b,S0,payoffFunction,payoff_is_a_path_functional,useParallel,nCores)
     #Step 2
     sigma<-var(diff)
     var_sequence <- c(var_sequence,sigma)
@@ -48,7 +96,7 @@ multilevel_mc<-function(
 #   stopMLMC<-if(L > 4){TRUE}
 #   else{FALSE}
     }
-
+      
     Y_hat_old <- Y_hat
     Y_hat_sequence <- c(Y_hat_sequence,Y_hat)
 #    print(Y_hat_sequence)
