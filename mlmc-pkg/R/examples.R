@@ -3,14 +3,14 @@
 SDE_geomBM <- function(r = 0.05,s = 0.2,X0=1.0) list(r=r,s=s,X0=X0,mu = function(t,x) r*x,sigma = function(t,x) s*x)
 
 f_europeanOption <- function(r = 0.05, X0 = 1.0,tMax){
-  function(X_T) return(exp(-r*tMax)*max(0,X_T - X0))o
+  function(X_T) return(exp(-r*tMax)*max(0,X_T - X0))
 }
 
 f_asianOption <- function(r = 0.05 , X0 = 1.0){
   function(timesteps,X){
     N <- length(X)
     tMax <- timesteps[N]
-    Xbar <- 0.5 * sum((X[-1] + X[-N]) * (timesteps[-1] - timesteps[-N])))
+    Xbar <- 0.5 * sum((X[-1] + X[-N]) * (timesteps[-1] - timesteps[-N]))
     return(exp(-r*tMax)*max(0,X-X0))
   }
 }
