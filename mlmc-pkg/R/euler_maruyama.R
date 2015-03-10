@@ -132,7 +132,7 @@ euler_maruyama_multilevel <- function(
         t <- i*h_coarse
         S[i+1] <- S[i] + a(t,S[i])*h_coarse + b(t,S[i])*dW[i]
       }
-      return(payoffFunction(timestep_coarses,S))
+      return(payoffFunction(timesteps_coarse,S))
     }
     reduction_step_fine <- function(increments){
       dim(increments) <- n_steps_fine
@@ -142,7 +142,7 @@ euler_maruyama_multilevel <- function(
         t <- i*h_fine
         S[i+1] <- S[i] + a(t,S[i])*h_fine + b(t,S[i])*increments[i]
       }
-      return(payoffFunction(timestep_fine,S))
+      return(payoffFunction(timesteps_fine,S))
     }
   }
 
