@@ -11,7 +11,7 @@ f_asianOption <- function(r = 0.05 , X0 = 1.0){
     N <- length(X)
     tMax <- timesteps[N]
     Xbar <- 0.5 * sum((X[-1] + X[-N]) * (timesteps[-1] - timesteps[-N]))
-    return(exp(-r*tMax)*max(0,X-X0))
+    return(exp(-r*tMax)*max(0,X-Xbar))
   }
 }
 
@@ -29,6 +29,6 @@ f_loopbackOption <- function(r = 0.05, s = 0.2, X0 = 1.0){
 
 f_digitalOption <- function(r = 0.05 , X0 = 1.0,tMax = 1.0){
   function(X_T){
-    exp(-r*tMax)*as.numeric(XT > X0)
+    exp(-r*tMax)*as.numeric(X_T > X0)
   }
 }
