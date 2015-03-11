@@ -1,10 +1,10 @@
-#' Implements the Multilevel Monte Carlo Path Simulation described 
+#' Implements the Multilevel Monte Carlo Path Simulation described
 #' in the paper by Giles 2008
-#' 
+#'
 #' @description obtaines the value of Y_hat
-#' 
+#'
 #' Y_hat = N_L^(-1)sum_(i=1)^L (P_l-P_{l-1})
-#' 
+#'
 #' obtaining the optimal number of paths N_opt to be sampled of the SDE
 #'
 #' dS_t = a(t,S_t) dt + b(t,S_t) dW_t
@@ -34,15 +34,15 @@
 #' on the parallel-package.
 #' @param nCores the number of cores to use when running in parallel.
 #' if set to \code{NA}, the total number of availiable cores is used.
-#' @param epsilon r.m.s. accuracy used to determine the optimal 
+#' @param epsilon r.m.s. accuracy used to determine the optimal
 #' number of paths.
 #'
 #' @return A list containing the optimal Y_hat, the variance of the
 #' sequence, the optimal number of paths and the computing times of
 #' each path.
-#' 
+#'
 #' @example R/financial_options.R
-#' 
+#'
 #' @export multilevel_mc
 
 multilevel_mc<-function(
@@ -67,6 +67,7 @@ multilevel_mc<-function(
   var_sequence <- vector()
   times <- vector()
   stopMLMC<-FALSE
+  Sum<-0
   while (L<2 || !stopMLMC) {
     t_start <- Sys.time()
 #    print(paste("Running loop for L =",L))
@@ -75,18 +76,35 @@ multilevel_mc<-function(
     sigma<-var(diff)
     var_sequence <- c(var_sequence,sigma)
     Y_hat<-mean(diff)
-    sum<-0
-    for (i in 0:L) {
-      sum <- sum+sqrt(sigma/(Tmax/(M^i)))
-    }
+    Y_hat_sequence <- c(Y_hat_sequence,Y_hat)
     #Step 3
-    N_opt<-ceiling(2*epsilon^(-2)*sqrt(sigma*Tmax/(M^L))*sum)
-    N_opt_sequence <- c(N_opt_sequence,N_opt)
+    Sum <- Sum+sqrt(sigma/(Tmax/(M^L)))
+
+    N_opt_sequence_old <- c(N_opt_sequence,N_L)
+    N_opt_sequence <- sapply(X=0:L,FUN = function(l) ceiling(2*epsilon^(-2) * sqrt(var_sequence[l+1]*Tmax/(M^l)) * Sum ))
+
+#     N_opt<-ceiling(2*epsilon^(-2)*sqrt(sigma*Tmax/(M^L))*Sum)
+#     N_opt_sequence <- c(N_opt_sequence,N_opt)
+
 #    print(paste("N_opt =",N_opt))
     #Step 4
-    if(N_L<N_opt){
-      diff<- c(diff,euler_maruyama_multilevel(L,M,h0,Tmax,N_opt - N_L,a,b,S0,payoffFunction))
-      Y_hat<-mean(diff)
+#     print(N_opt_sequence_old)
+#     print(N_opt_sequence)
+    for(l in 0:L){
+      if(N_opt_sequence_old[l+1] < N_opt_sequence[l+1]){
+        alpha <- N_opt_sequence_old[l+1]/N_opt_sequence[l+1]
+        diffNew <- euler_maruyama_multilevel(L = l,
+                                             M = M,
+                                             h0 = Tmax,
+                                             Tmax = Tmax,
+                                             N_L = N_opt_sequence[l+1] - N_opt_sequence_old[l+1],
+                                             a = a,
+                                             b = b,
+                                             S0 = S0,
+                                             payoffFunction = payoffFunction)
+        #diff<- c(diff,euler_maruyama_multilevel(L,M,h0,Tmax,N_opt - N_L,a,b,S0,payoffFunction))
+        Y_hat_sequence[l+1] <- alpha*Y_hat_sequence[l+1] + (1 - alpha) * mean(diffNew)
+      }
     }
     L <- L+1
   #Step 5
@@ -96,9 +114,9 @@ multilevel_mc<-function(
 #   stopMLMC<-if(L > 4){TRUE}
 #   else{FALSE}
     }
-      
+
     Y_hat_old <- Y_hat
-    Y_hat_sequence <- c(Y_hat_sequence,Y_hat)
+    #Y_hat_sequence <- c(Y_hat_sequence,Y_hat)
 #    print(Y_hat_sequence)
     t_end <- Sys.time()
     times <- c(times,difftime(t_end,t_start,units = "secs"))
