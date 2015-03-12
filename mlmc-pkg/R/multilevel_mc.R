@@ -1,10 +1,10 @@
-#' Implements the Multilevel Monte Carlo Path Simulation described 
+#' Implements the Multilevel Monte Carlo Path Simulation described
 #' in the paper by Giles 2008
-#' 
+#'
 #' @description calculates the value of Y_hat
-#' 
+#'
 #' Y_hat = N_L^(-1)sum_(i=1)^L (P_l-P_{l-1})
-#' 
+#'
 #' obtaining the optimal number of paths N_opt to be sampled of the SDE
 #'
 #' dS_t = a(t,S_t) dt + b(t,S_t) dW_t
@@ -34,15 +34,15 @@
 #' on the parallel-package.
 #' @param nCores the number of cores to use when running in parallel.
 #' if set to \code{NA}, the total number of availiable cores is used.
-#' @param epsilon r.m.s. accuracy used to determine the optimal 
+#' @param epsilon r.m.s. accuracy used to determine the optimal
 #' number of paths.
 #'
 #' @return A list containing the optimal Y_hat, the variance of the
 #' sequence, the optimal number of paths and the computing times of
 #' each path.
-#' 
-#' @example R/example_mlmc.R
-#' 
+#'
+#' @example examples/example_mlmc.R
+#'
 #' @export multilevel_mc
 
 multilevel_mc<-function(

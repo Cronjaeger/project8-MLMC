@@ -1,8 +1,10 @@
 Package: mlmcpkg
-Title: Code for a 2 week project on Multilevel Monte Carlo methods for SDEs
+Title: Multilevel Monte Carlo sampling for SDEs
 Version: 0.1
-Authors@R: "Mathias C. Cronjager <kitkat2.0@gmail.com> [aut, cre]"
-Description: Does what the title says.
+Authors@R: c(person("Mathias C.", "Cronjager", email = "kitkat2.0@gmail.com", role = c( "aut", "cre")),
+  person("Alejandra", "Avalos-Pacheco", email = "alejandra.avalos-pacheco@spc.ox.ac.uk",role = c( "aut")),
+  person("Sophia", "Wright", email = "sophia.wright@spc.ox.ac.uk", role = c("aut")))
+Description: Code for a 2 week project on Multilevel Monte Carlo methods for SDEs
 Depends: R (>= 3.1.2)
 License: MIT Liscence
 LazyData: true
